@@ -1,0 +1,938 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Shadows of the Deep — A Dungeon Crawler</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Silkscreen:wght@400;700&display=swap');
+
+:root {
+  --bg-dark: #0a0a12;
+  --bg-panel: #12121f;
+  --bg-panel-light: #1a1a2e;
+  --border: #2a2a4a;
+  --border-highlight: #4a4a8a;
+  --text: #c8c8e0;
+  --text-dim: #6a6a8a;
+  --text-bright: #eeeeff;
+  --gold: #f0c040;
+  --gold-dim: #a08020;
+  --red: #e04040;
+  --red-dim: #802020;
+  --green: #40c060;
+  --green-dim: #208030;
+  --blue: #4080e0;
+  --blue-dim: #203080;
+  --purple: #a040e0;
+  --cyan: #40c0c0;
+  --orange: #e08040;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  background: var(--bg-dark);
+  color: var(--text);
+  font-family: 'Silkscreen', monospace;
+  min-height: 100vh;
+  overflow-x: hidden;
+  image-rendering: pixelated;
+}
+
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,0.08) 2px,rgba(0,0,0,0.08) 4px);
+  pointer-events: none;
+  z-index: 9999;
+}
+
+h1, h2, h3 { font-family: 'Press Start 2P', monospace; }
+
+.screen { display: none; width: 100%; min-height: 100vh; }
+.screen.active { display: flex; flex-direction: column; align-items: center; }
+
+/* TITLE */
+#title-screen {
+  justify-content: center; gap: 40px;
+  background: radial-gradient(ellipse at 50% 80%, #1a1040 0%, var(--bg-dark) 70%);
+  position: relative; overflow: hidden;
+}
+#title-screen::before {
+  content: ''; position: absolute; inset: 0;
+  background:
+    radial-gradient(2px 2px at 20% 10%, rgba(255,255,255,0.3), transparent),
+    radial-gradient(2px 2px at 50% 30%, rgba(255,255,255,0.2), transparent),
+    radial-gradient(2px 2px at 80% 20%, rgba(255,255,255,0.25), transparent),
+    radial-gradient(2px 2px at 10% 60%, rgba(255,255,255,0.15), transparent),
+    radial-gradient(2px 2px at 70% 70%, rgba(255,255,255,0.2), transparent),
+    radial-gradient(2px 2px at 40% 80%, rgba(255,255,255,0.1), transparent);
+  animation: twinkle 4s ease-in-out infinite alternate;
+}
+@keyframes twinkle { 0% { opacity: 0.6; } 100% { opacity: 1; } }
+
+.title-logo { text-align: center; z-index: 1; }
+.title-logo h1 {
+  font-size: 28px; color: var(--gold);
+  text-shadow: 0 0 20px rgba(240,192,64,0.5), 0 4px 0 var(--gold-dim);
+  letter-spacing: 4px; line-height: 1.8;
+}
+.title-logo .subtitle {
+  font-family: 'Silkscreen', monospace; font-size: 14px;
+  color: var(--text-dim); margin-top: 12px; letter-spacing: 6px;
+}
+.title-art { width: 160px; height: 160px; margin: 0 auto 20px; }
+
+.btn {
+  font-family: 'Press Start 2P', monospace; font-size: 12px;
+  padding: 14px 32px; background: var(--bg-panel); color: var(--text);
+  border: 2px solid var(--border); cursor: pointer; transition: all 0.15s;
+  text-transform: uppercase; letter-spacing: 2px; z-index: 1; position: relative;
+}
+.btn:hover {
+  background: var(--bg-panel-light); border-color: var(--gold); color: var(--gold);
+  box-shadow: 0 0 16px rgba(240,192,64,0.2), inset 0 0 16px rgba(240,192,64,0.05);
+}
+.btn-primary { border-color: var(--gold-dim); color: var(--gold); }
+
+/* CHARACTER CREATION */
+#create-screen { padding: 40px 20px; gap: 24px; background: var(--bg-dark); }
+.create-title { font-size: 16px; color: var(--gold); text-shadow: 0 0 10px rgba(240,192,64,0.3); }
+.class-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; max-width: 960px; width: 100%; }
+
+.class-card {
+  background: var(--bg-panel); border: 2px solid var(--border);
+  padding: 20px; cursor: pointer; transition: all 0.2s; position: relative;
+}
+.class-card:hover, .class-card.selected { border-color: var(--gold); box-shadow: 0 0 20px rgba(240,192,64,0.15); }
+.class-card.selected::after { content: '▶'; position: absolute; top: 8px; right: 12px; color: var(--gold); font-size: 12px; }
+.class-sprite { width: 64px; height: 64px; margin: 0 auto 12px; display: block; }
+.class-card h3 { font-size: 11px; color: var(--gold); text-align: center; margin-bottom: 8px; }
+.class-card p { font-size: 11px; color: var(--text-dim); text-align: center; line-height: 1.6; }
+.class-stats { margin-top: 12px; display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
+.class-stats span { font-size: 10px; color: var(--text-dim); }
+.class-stats .val { color: var(--text); }
+
+.name-input-row { display: flex; gap: 12px; align-items: center; }
+.name-input-row label { font-family: 'Press Start 2P', monospace; font-size: 10px; color: var(--text-dim); }
+.name-input-row input {
+  font-family: 'Silkscreen', monospace; font-size: 14px;
+  background: var(--bg-panel); border: 2px solid var(--border);
+  color: var(--text-bright); padding: 8px 16px; outline: none; width: 200px;
+}
+.name-input-row input:focus { border-color: var(--gold); }
+
+/* GAME */
+#game-screen { min-height: 100vh; background: var(--bg-dark); }
+.game-layout {
+  display: grid; grid-template-columns: 1fr 280px; grid-template-rows: auto 1fr auto;
+  width: 100%; max-width: 1100px; margin: 0 auto; min-height: 100vh; gap: 0;
+}
+.top-bar {
+  grid-column: 1 / -1; display: flex; justify-content: space-between;
+  align-items: center; padding: 8px 16px;
+  background: var(--bg-panel); border-bottom: 2px solid var(--border);
+}
+.top-bar .location-name { font-family: 'Press Start 2P', monospace; font-size: 10px; color: var(--gold); }
+.top-bar .floor-info { font-size: 11px; color: var(--text-dim); }
+
+.dungeon-panel { display: flex; flex-direction: column; border-right: 2px solid var(--border); }
+.dungeon-viewport {
+  flex: 1; display: flex; align-items: center; justify-content: center;
+  background: #08080f; position: relative; min-height: 400px; overflow: hidden;
+}
+.dungeon-canvas { width: 100%; height: 100%; }
+
+.narrative-log {
+  height: 140px; overflow-y: auto; padding: 12px 16px;
+  background: var(--bg-panel); border-top: 2px solid var(--border);
+  display: flex; flex-direction: column; gap: 4px;
+}
+.narrative-log .msg { font-size: 11px; line-height: 1.6; animation: fadeIn 0.3s; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; } }
+.msg.story { color: var(--cyan); }
+.msg.combat { color: var(--red); }
+.msg.loot { color: var(--gold); }
+.msg.system { color: var(--text-dim); }
+.msg.heal { color: var(--green); }
+.msg.player { color: var(--text-bright); }
+
+.sidebar { display: flex; flex-direction: column; background: var(--bg-panel); }
+.char-panel { padding: 16px; border-bottom: 2px solid var(--border); }
+.char-name { font-family: 'Press Start 2P', monospace; font-size: 10px; color: var(--gold); margin-bottom: 4px; }
+.char-class { font-size: 11px; color: var(--text-dim); margin-bottom: 12px; }
+
+.stat-bar { margin-bottom: 8px; }
+.stat-bar .label { display: flex; justify-content: space-between; font-size: 10px; margin-bottom: 3px; }
+.stat-bar .label .name { color: var(--text-dim); }
+.stat-bar .label .val { color: var(--text); }
+.bar-track { height: 8px; background: var(--bg-dark); border: 1px solid var(--border); }
+.bar-fill { height: 100%; transition: width 0.4s; }
+.bar-fill.hp { background: var(--red); }
+.bar-fill.mp { background: var(--blue); }
+.bar-fill.xp { background: var(--gold); }
+
+.stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; margin-top: 12px; }
+.stats-grid .stat { font-size: 10px; display: flex; justify-content: space-between; padding: 2px 0; }
+.stats-grid .stat .sname { color: var(--text-dim); }
+.stats-grid .stat .sval { color: var(--text); }
+
+.actions-panel { padding: 12px; flex: 1; display: flex; flex-direction: column; gap: 6px; overflow-y: auto; }
+.actions-panel h3 { font-size: 9px; color: var(--text-dim); margin-bottom: 4px; letter-spacing: 2px; }
+
+.action-btn {
+  font-family: 'Silkscreen', monospace; font-size: 12px; padding: 8px 12px;
+  background: var(--bg-dark); color: var(--text); border: 1px solid var(--border);
+  cursor: pointer; text-align: left; transition: all 0.15s;
+  display: flex; justify-content: space-between; align-items: center;
+}
+.action-btn:hover:not(:disabled) { border-color: var(--gold); color: var(--gold); background: var(--bg-panel-light); }
+.action-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+.action-btn .cost { font-size: 10px; color: var(--blue); }
+
+.move-controls {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px;
+  margin-top: auto; padding-top: 8px; border-top: 1px solid var(--border);
+}
+.move-btn {
+  font-family: 'Press Start 2P', monospace; font-size: 14px; padding: 10px;
+  background: var(--bg-dark); color: var(--text); border: 1px solid var(--border);
+  cursor: pointer; text-align: center; transition: all 0.15s;
+}
+.move-btn:hover { border-color: var(--gold); color: var(--gold); }
+.move-btn.empty { visibility: hidden; }
+
+/* COMBAT OVERLAY */
+.combat-overlay {
+  display: none; position: absolute; inset: 0; background: rgba(8,8,15,0.92);
+  z-index: 10; flex-direction: column; align-items: center; justify-content: center;
+  gap: 20px; padding: 20px;
+}
+.combat-overlay.active { display: flex; }
+.enemy-display { text-align: center; }
+.enemy-sprite-container { width: 128px; height: 128px; margin: 0 auto 12px; display: block; }
+.enemy-name { font-family: 'Press Start 2P', monospace; font-size: 12px; color: var(--red); margin-bottom: 8px; }
+.enemy-hp-bar { width: 200px; margin: 0 auto; }
+.combat-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+
+/* Shake animation for damage */
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-6px); }
+  40% { transform: translateX(6px); }
+  60% { transform: translateX(-4px); }
+  80% { transform: translateX(4px); }
+}
+.shake { animation: shake 0.3s ease-in-out; }
+
+/* DIALOGUE */
+.dialogue-overlay {
+  display: none; position: absolute; bottom: 0; left: 0; right: 0;
+  background: rgba(18,18,31,0.97); border-top: 2px solid var(--gold-dim);
+  padding: 20px; z-index: 10;
+}
+.dialogue-overlay.active { display: block; }
+.dialogue-speaker { font-family: 'Press Start 2P', monospace; font-size: 10px; color: var(--gold); margin-bottom: 8px; }
+.dialogue-text { font-size: 12px; color: var(--text); line-height: 1.8; margin-bottom: 12px; }
+.dialogue-choices { display: flex; flex-direction: column; gap: 6px; }
+.dialogue-choice {
+  font-family: 'Silkscreen', monospace; font-size: 11px; padding: 8px 12px;
+  background: var(--bg-dark); border: 1px solid var(--border); color: var(--cyan);
+  cursor: pointer; text-align: left; transition: all 0.15s;
+}
+.dialogue-choice:hover { border-color: var(--cyan); background: var(--bg-panel-light); }
+
+/* LEVEL UP */
+.level-up-flash {
+  display: none; position: fixed; inset: 0;
+  background: radial-gradient(ellipse at center, rgba(240,192,64,0.3), transparent 70%);
+  z-index: 100; pointer-events: none; animation: levelFlash 1.5s ease-out forwards;
+}
+.level-up-flash.active { display: block; }
+@keyframes levelFlash { 0% { opacity: 0; } 20% { opacity: 1; } 100% { opacity: 0; } }
+
+.level-up-text {
+  position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%);
+  font-family: 'Press Start 2P', monospace; font-size: 24px; color: var(--gold);
+  text-shadow: 0 0 30px rgba(240,192,64,0.8);
+  z-index: 101; pointer-events: none; animation: levelText 2s ease-out forwards; display: none;
+}
+.level-up-text.active { display: block; }
+@keyframes levelText {
+  0% { opacity: 0; transform: translate(-50%,-50%) scale(0.5); }
+  30% { opacity: 1; transform: translate(-50%,-50%) scale(1.2); }
+  60% { opacity: 1; transform: translate(-50%,-50%) scale(1); }
+  100% { opacity: 0; transform: translate(-50%,-60%) scale(1); }
+}
+
+/* GAME OVER */
+#gameover-screen {
+  justify-content: center; gap: 24px;
+  background: radial-gradient(ellipse at center, #200808, var(--bg-dark));
+}
+#gameover-screen h1 { font-size: 24px; color: var(--red); text-shadow: 0 0 20px rgba(224,64,64,0.5); }
+#gameover-screen .stats-summary { text-align: center; font-size: 12px; color: var(--text-dim); line-height: 2; }
+
+/* VICTORY */
+#victory-screen {
+  justify-content: center; gap: 24px;
+  background: radial-gradient(ellipse at center, #1a1040, var(--bg-dark));
+}
+#victory-screen h1 { font-size: 20px; color: var(--gold); text-shadow: 0 0 30px rgba(240,192,64,0.5); }
+#victory-screen .stats-summary { text-align: center; font-size: 12px; color: var(--text); line-height: 2; }
+
+@media (max-width: 768px) {
+  .game-layout { grid-template-columns: 1fr; }
+  .dungeon-panel { border-right: none; border-bottom: 2px solid var(--border); }
+  .dungeon-viewport { min-height: 280px; }
+  .sidebar { flex-direction: row; flex-wrap: wrap; }
+  .char-panel { flex: 1; min-width: 200px; }
+  .actions-panel { flex: 1; min-width: 200px; }
+  .title-logo h1 { font-size: 18px; }
+}
+</style>
+</head>
+<body>
+
+<div id="title-screen" class="screen active">
+  <div class="title-logo">
+    <canvas class="title-art" id="titleArtCanvas" width="160" height="160"></canvas>
+    <h1>SHADOWS<br>OF THE DEEP</h1>
+    <div class="subtitle">A Dungeon Crawler</div>
+  </div>
+  <button class="btn btn-primary" onclick="showScreen('create-screen')">NEW QUEST</button>
+</div>
+
+<div id="create-screen" class="screen">
+  <h2 class="create-title">Choose Your Path</h2>
+  <div class="class-grid" id="classGrid"></div>
+  <div class="name-input-row">
+    <label>NAME:</label>
+    <input type="text" id="heroName" maxlength="12" value="Hero" spellcheck="false">
+  </div>
+  <button class="btn btn-primary" onclick="startGame()">Enter the Dungeon</button>
+</div>
+
+<div id="game-screen" class="screen">
+  <div class="game-layout">
+    <div class="top-bar">
+      <span class="location-name" id="locationName">The Entrance Hall</span>
+      <span class="floor-info" id="floorInfo">Floor 1</span>
+    </div>
+    <div class="dungeon-panel">
+      <div class="dungeon-viewport">
+        <canvas class="dungeon-canvas" id="dungeonCanvas"></canvas>
+        <div class="combat-overlay" id="combatOverlay">
+          <div class="enemy-display">
+            <canvas class="enemy-sprite-container" id="enemySpriteCanvas" width="128" height="128"></canvas>
+            <div class="enemy-name" id="enemyName"></div>
+            <div class="enemy-hp-bar">
+              <div class="stat-bar">
+                <div class="label"><span class="name">HP</span><span class="val" id="enemyHpText"></span></div>
+                <div class="bar-track"><div class="bar-fill hp" id="enemyHpBar"></div></div>
+              </div>
+            </div>
+          </div>
+          <div class="combat-actions" id="combatActions"></div>
+        </div>
+        <div class="dialogue-overlay" id="dialogueOverlay">
+          <div class="dialogue-speaker" id="dialogueSpeaker"></div>
+          <div class="dialogue-text" id="dialogueText"></div>
+          <div class="dialogue-choices" id="dialogueChoices"></div>
+        </div>
+      </div>
+      <div class="narrative-log" id="narrativeLog"></div>
+    </div>
+    <div class="sidebar">
+      <div class="char-panel">
+        <div class="char-name" id="charName"></div>
+        <div class="char-class" id="charClass"></div>
+        <div class="stat-bar"><div class="label"><span class="name">HP</span><span class="val" id="hpText"></span></div><div class="bar-track"><div class="bar-fill hp" id="hpBar"></div></div></div>
+        <div class="stat-bar"><div class="label"><span class="name">MP</span><span class="val" id="mpText"></span></div><div class="bar-track"><div class="bar-fill mp" id="mpBar"></div></div></div>
+        <div class="stat-bar"><div class="label"><span class="name">XP</span><span class="val" id="xpText"></span></div><div class="bar-track"><div class="bar-fill xp" id="xpBar"></div></div></div>
+        <div class="stats-grid" id="statsGrid"></div>
+      </div>
+      <div class="actions-panel" id="actionsPanel">
+        <h3>ABILITIES</h3>
+        <div id="abilityButtons"></div>
+        <div class="move-controls">
+          <div class="move-btn empty"></div>
+          <button class="move-btn" onclick="movePlayer(0,-1)" title="North">&#9650;</button>
+          <div class="move-btn empty"></div>
+          <button class="move-btn" onclick="movePlayer(-1,0)" title="West">&#9668;</button>
+          <button class="move-btn" onclick="movePlayer(0,0)" title="Wait">&#9679;</button>
+          <button class="move-btn" onclick="movePlayer(1,0)" title="East">&#9658;</button>
+          <div class="move-btn empty"></div>
+          <button class="move-btn" onclick="movePlayer(0,1)" title="South">&#9660;</button>
+          <div class="move-btn empty"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="gameover-screen" class="screen">
+  <h1>YOU HAVE FALLEN</h1>
+  <div class="stats-summary" id="deathSummary"></div>
+  <button class="btn btn-primary" onclick="location.reload()">TRY AGAIN</button>
+</div>
+
+<div id="victory-screen" class="screen">
+  <h1>&#10022; DUNGEON CONQUERED &#10022;</h1>
+  <div class="stats-summary" id="victorySummary"></div>
+  <button class="btn btn-primary" onclick="location.reload()">PLAY AGAIN</button>
+</div>
+
+<div class="level-up-flash" id="levelFlash"></div>
+<div class="level-up-text" id="levelText">LEVEL UP!</div>
+
+<script>
+const CLASSES = [
+  { id:'warrior', name:'Warrior', desc:'A stalwart fighter clad in heavy armor.',
+    hp:120, mp:30, atk:14, def:12, mag:4, spd:6, color:'#e04040',
+    abilities:[
+      {name:'Strike',cost:0,dmg:1.0,type:'physical',desc:'Basic attack'},
+      {name:'Power Slash',cost:8,dmg:1.8,type:'physical',desc:'Heavy cleave'},
+      {name:'Shield Wall',cost:10,dmg:0,type:'buff_def',desc:'+50% DEF 3 turns'},
+      {name:'War Cry',cost:15,dmg:0,type:'buff_atk',desc:'+40% ATK 3 turns'}
+    ]},
+  { id:'mage', name:'Mage', desc:'Master of the arcane arts.',
+    hp:70, mp:100, atk:4, def:5, mag:16, spd:8, color:'#a040e0',
+    abilities:[
+      {name:'Staff Hit',cost:0,dmg:0.5,type:'physical',desc:'Basic attack'},
+      {name:'Fireball',cost:12,dmg:2.0,type:'magic',desc:'Blaze of fire'},
+      {name:'Ice Lance',cost:8,dmg:1.4,type:'magic',desc:'Piercing cold'},
+      {name:'Arcane Shield',cost:15,dmg:0,type:'buff_def',desc:'+60% DEF 2 turns'}
+    ]},
+  { id:'rogue', name:'Rogue', desc:'Swift and deadly shadow dancer.',
+    hp:85, mp:50, atk:12, def:7, mag:6, spd:15, color:'#40c060',
+    abilities:[
+      {name:'Stab',cost:0,dmg:0.9,type:'physical',desc:'Quick jab'},
+      {name:'Backstab',cost:10,dmg:2.2,type:'physical',desc:'Critical strike'},
+      {name:'Poison Blade',cost:8,dmg:1.0,type:'poison',desc:'DOT 3 turns'},
+      {name:'Vanish',cost:18,dmg:0,type:'buff_evade',desc:'Dodge next 2 attacks'}
+    ]},
+  { id:'cleric', name:'Cleric', desc:'Holy healer and undead bane.',
+    hp:95, mp:80, atk:8, def:10, mag:12, spd:7, color:'#f0c040',
+    abilities:[
+      {name:'Smite',cost:0,dmg:0.8,type:'magic',desc:'Holy strike'},
+      {name:'Heal',cost:10,dmg:0,type:'heal',desc:'Restore HP'},
+      {name:'Holy Light',cost:15,dmg:1.8,type:'magic',desc:'Radiant burst'},
+      {name:'Blessing',cost:20,dmg:0,type:'buff_all',desc:'+25% all 3 turns'}
+    ]}
+];
+
+const ENEMIES_BY_FLOOR = {
+  1:[{name:'Rat Swarm',hp:25,atk:6,def:2,spd:10,xp:15,color:'#8a7a6a'},
+     {name:'Skeleton',hp:35,atk:8,def:5,spd:5,xp:20,color:'#d0d0c0'},
+     {name:'Slime',hp:40,atk:5,def:3,spd:3,xp:12,color:'#40c040'}],
+  2:[{name:'Goblin Scout',hp:45,atk:11,def:6,spd:12,xp:30,color:'#60a040'},
+     {name:'Zombie',hp:60,atk:10,def:4,spd:2,xp:25,color:'#608060'},
+     {name:'Fire Bat',hp:30,atk:14,def:3,spd:16,xp:28,color:'#e06020'}],
+  3:[{name:'Orc Warrior',hp:80,atk:16,def:10,spd:7,xp:50,color:'#509030'},
+     {name:'Dark Mage',hp:55,atk:20,def:5,spd:9,xp:55,color:'#8040c0'},
+     {name:'Shadow Wolf',hp:65,atk:18,def:7,spd:14,xp:45,color:'#404060'}],
+  4:[{name:'Troll',hp:120,atk:22,def:14,spd:4,xp:80,color:'#609040'},
+     {name:'Wraith',hp:70,atk:25,def:8,spd:12,xp:75,color:'#6060a0'},
+     {name:'Dragon Wyrmling',hp:100,atk:28,def:12,spd:10,xp:100,color:'#c04040'}]
+};
+
+const ROOM_NAMES = ['The Whispering Hall','Chamber of Echoes','Crumbling Passage','Ancient Vault',
+  'Bone Gallery','The Sunken Room','Mossy Corridor','Crystal Alcove','The Dark Shrine',
+  'Ruined Library','Torture Chamber','The Pit','Spider\'s Nest','Flooded Crypt','Ember Hall','Frozen Tomb'];
+
+const STORY_EVENTS = [
+  { speaker:'A Dying Knight',
+    text:'Traveler... beware. The Shadow Lord\'s power grows with each floor. He feeds on the despair of those who wander these halls.',
+    choices:[
+      {text:'I will end him.',effect:'brave',response:'Then take my amulet. It may protect you... where I could not.'},
+      {text:'What happened here?',effect:'learn',response:'The king sent us to cleanse this place. Twenty entered. I am the last.'}
+    ]},
+  { speaker:'Mysterious Merchant',
+    text:'Psst! Looking for supplies? I have potions... for the right price. Or perhaps a trade?',
+    choices:[
+      {text:'I\'ll take a potion. (Heal 50% HP)',effect:'heal',response:'Smart choice. This will keep you alive a bit longer. Good luck!'},
+      {text:'Tell me about the deeper floors.',effect:'learn',response:'Below the third floor, reality bends. The walls move. And at the bottom... some doors should stay closed.'}
+    ]},
+  { speaker:'Ghostly Figure',
+    text:'You carry the light of the surface. How long before this place snuffs it out? I was like you once...',
+    choices:[
+      {text:'I am stronger than you were.',effect:'brave',response:'Perhaps. Or perhaps pride is the first thing the darkness devours.'},
+      {text:'How can I avoid your fate?',effect:'learn',response:'Trust nothing the dungeon shows you. Every treasure is a trap. Only your blade is honest.'}
+    ]},
+  { speaker:'Ancient Stone Tablet',
+    text:'"When the four seals break and shadow drinks deep of mortal blood, the gate below shall open."',
+    choices:[
+      {text:'Examine the runes closely. (+5 MAG)',effect:'mag_boost',response:'The runes burn into your mind. Ancient knowledge floods through you...'},
+      {text:'Press onward.',effect:'none',response:'Some knowledge is better left undisturbed. You continue deeper.'}
+    ]}
+];
+
+let state = {
+  selectedClass: null, player: null, floor: 1, map: null,
+  playerPos:{x:0,y:0}, combat: null, visited: new Set(),
+  monstersKilled: 0, storyEventsUsed: new Set(),
+  buffs: [], poisonTurns: 0, evadeTurns: 0, inCombat: false
+};
+
+// PIXEL ART
+function drawPixelSprite(ctx, data, size, ox=0, oy=0) {
+  const px = size / data.length;
+  for(let y=0;y<data.length;y++)
+    for(let x=0;x<data[y].length;x++)
+      if(data[y][x]) { ctx.fillStyle=data[y][x]; ctx.fillRect(ox+x*px,oy+y*px,Math.ceil(px),Math.ceil(px)); }
+}
+
+function shadeColor(hex,amt) {
+  let r=parseInt(hex.slice(1,3),16)+amt, g=parseInt(hex.slice(3,5),16)+amt, b=parseInt(hex.slice(5,7),16)+amt;
+  r=Math.max(0,Math.min(255,r)); g=Math.max(0,Math.min(255,g)); b=Math.max(0,Math.min(255,b));
+  return '#'+r.toString(16).padStart(2,'0')+g.toString(16).padStart(2,'0')+b.toString(16).padStart(2,'0');
+}
+
+function generateCharSprite(classId) {
+  const C={warrior:['#c03030','#808090','#604020','#f0c090','#402010'],
+           mage:['#6030a0','#4020c0','#301080','#f0c090','#503080'],
+           rogue:['#305030','#204020','#102010','#f0c090','#303030'],
+           cleric:['#c0a030','#f0e060','#a08020','#f0c090','#e0d080']};
+  const c=C[classId], _=null;
+  return [
+    [_,_,_,_,_,_,c[2],c[2],c[2],c[2],_,_,_,_,_,_],
+    [_,_,_,_,_,c[2],c[0],c[0],c[0],c[0],c[2],_,_,_,_,_],
+    [_,_,_,_,c[2],c[0],c[0],c[0],c[0],c[0],c[0],c[2],_,_,_,_],
+    [_,_,_,_,c[3],c[3],c[3],c[3],c[3],c[3],c[3],c[3],_,_,_,_],
+    [_,_,_,c[3],c[3],'#222',c[3],c[3],c[3],'#222',c[3],c[3],_,_,_,_],
+    [_,_,_,c[3],c[3],c[3],c[3],'#a06050',c[3],c[3],c[3],c[3],_,_,_,_],
+    [_,_,_,_,c[3],c[3],c[3],c[3],c[3],c[3],c[3],_,_,_,_,_],
+    [_,_,_,_,_,c[1],c[1],c[1],c[1],c[1],_,_,_,_,_,_],
+    [_,_,_,_,c[1],c[1],c[1],c[1],c[1],c[1],c[1],_,_,_,_,_],
+    [_,_,_,c[4],c[1],c[1],c[1],c[1],c[1],c[1],c[1],c[4],_,_,_,_],
+    [_,_,c[4],c[4],c[1],c[1],c[1],c[1],c[1],c[1],c[1],c[4],c[4],_,_,_],
+    [_,_,c[3],_,c[1],c[1],c[1],c[1],c[1],c[1],c[1],_,c[3],_,_,_],
+    [_,_,_,_,c[1],c[1],_,_,_,c[1],c[1],_,_,_,_,_],
+    [_,_,_,_,c[1],c[1],_,_,_,c[1],c[1],_,_,_,_,_],
+    [_,_,_,_,c[4],c[4],_,_,_,c[4],c[4],_,_,_,_,_],
+    [_,_,_,c[4],c[4],c[4],_,_,_,c[4],c[4],c[4],_,_,_,_],
+  ];
+}
+
+function generateEnemySprite(color) {
+  const c=color, d=shadeColor(color,-40), l=shadeColor(color,40), e='#ff2020', _=null;
+  const shapes = [
+    [[_,_,_,c,c,_,_,_,_,c,c,_,_,_,_,_],[_,_,c,d,c,c,_,_,c,c,d,c,_,_,_,_],[_,_,c,c,c,c,c,c,c,c,c,c,_,_,_,_],[_,c,c,c,c,c,c,c,c,c,c,c,c,_,_,_],[_,c,c,e,'#fff',c,c,c,e,'#fff',c,c,c,_,_,_],[_,c,c,e,e,c,c,c,e,e,c,c,c,_,_,_],[c,c,c,c,c,c,d,d,c,c,c,c,c,c,_,_],[c,c,c,c,c,'#fff','#fff','#fff','#fff',c,c,c,c,c,_,_],[c,d,c,c,c,c,c,c,c,c,c,c,d,c,_,_],[_,d,d,c,c,c,c,c,c,c,c,d,d,_,_,_],[_,_,d,c,c,c,c,c,c,c,c,d,_,_,_,_],[_,_,c,c,c,_,_,_,_,c,c,c,_,_,_,_],[_,c,c,d,_,_,_,_,_,_,d,c,c,_,_,_],[_,c,d,d,_,_,_,_,_,_,d,d,c,_,_,_]],
+    [[_,_,_,_,_,d,d,d,d,d,_,_,_,_,_,_],[_,_,_,_,d,c,c,c,c,c,d,_,_,_,_,_],[_,_,_,d,c,c,c,c,c,c,c,d,_,_,_,_],[_,_,_,c,e,'#fff',c,c,e,'#fff',c,_,_,_,_,_],[_,_,_,c,e,e,c,c,e,e,c,_,_,_,_,_],[_,_,_,c,c,c,'#444','#444',c,c,c,_,_,_,_,_],[_,_,_,_,c,c,c,c,c,c,_,_,_,_,_,_],[_,_,_,c,d,d,d,d,d,d,c,_,_,_,_,_],[_,_,l,c,d,c,c,c,c,d,c,l,_,_,_,_],[_,l,l,c,d,c,c,c,c,d,c,l,l,_,_,_],[_,c,_,c,d,d,d,d,d,d,c,_,c,_,_,_],[_,_,_,_,d,d,_,_,d,d,_,_,_,_,_,_],[_,_,_,_,c,c,_,_,c,c,_,_,_,_,_,_],[_,_,_,d,d,d,_,_,d,d,d,_,_,_,_,_]]
+  ];
+  return shapes[Math.floor(Math.random()*shapes.length)];
+}
+
+// MAP
+function generateMap(floor) {
+  const W=9,H=9;
+  const map=Array.from({length:H},()=>Array(W).fill(0));
+  const rooms=[];
+  let cx=Math.floor(W/2), cy=Math.floor(H/2);
+  map[cy][cx]=1; rooms.push({x:cx,y:cy});
+  const numRooms=14+floor*2;
+  for(let i=0;i<numRooms*10&&rooms.length<numRooms;i++){
+    const dir=[[0,-1],[0,1],[-1,0],[1,0]][Math.floor(Math.random()*4)];
+    const nx=cx+dir[0], ny=cy+dir[1];
+    if(nx>0&&nx<W-1&&ny>0&&ny<H-1){ cx=nx; cy=ny;
+      if(map[cy][cx]===0){ map[cy][cx]=1; rooms.push({x:cx,y:cy}); }
+    }
+  }
+  const shuffled=rooms.slice(1);
+  for(let i=shuffled.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [shuffled[i],shuffled[j]]=[shuffled[j],shuffled[i]]; }
+  let idx=0;
+  if(idx<shuffled.length){map[shuffled[idx].y][shuffled[idx].x]=4;idx++;}
+  if(idx<shuffled.length){map[shuffled[idx].y][shuffled[idx].x]=3;idx++;}
+  for(let t=0;t<2&&idx<shuffled.length;t++){map[shuffled[idx].y][shuffled[idx].x]=5;idx++;}
+  const ec=4+floor;
+  for(let e=0;e<ec&&idx<shuffled.length;e++){map[shuffled[idx].y][shuffled[idx].x]=2;idx++;}
+  return {grid:map,start:rooms[0],rooms};
+}
+
+// RENDER DUNGEON
+function renderDungeon() {
+  const canvas=document.getElementById('dungeonCanvas');
+  const vp=canvas.parentElement;
+  canvas.width=vp.clientWidth; canvas.height=vp.clientHeight;
+  const ctx=canvas.getContext('2d');
+  ctx.imageSmoothingEnabled=false;
+  const map=state.map.grid, H=map.length, W=map[0].length;
+  const tileSize=Math.min(Math.floor(canvas.width/W),Math.floor(canvas.height/H));
+  const ox=Math.floor((canvas.width-W*tileSize)/2), oy=Math.floor((canvas.height-H*tileSize)/2);
+
+  ctx.fillStyle='#08080f'; ctx.fillRect(0,0,canvas.width,canvas.height);
+
+  for(let y=0;y<H;y++){
+    for(let x=0;x<W;x++){
+      const rx=ox+x*tileSize, ry=oy+y*tileSize;
+      const key=x+','+y;
+      const visited=state.visited.has(key);
+      const dist=Math.abs(x-state.playerPos.x)+Math.abs(y-state.playerPos.y);
+      const visible=dist<=3;
+
+      if(map[y][x]===0){
+        if(visible){
+          ctx.fillStyle='#18182a'; ctx.fillRect(rx,ry,tileSize,tileSize);
+          ctx.fillStyle='#1e1e34';
+          for(let py=0;py<tileSize;py+=4) for(let px=0;px<tileSize;px+=4) if(Math.random()>0.7) ctx.fillRect(rx+px,ry+py,2,2);
+        }
+        continue;
+      }
+      if(!visible&&!visited){ctx.fillStyle='#0c0c16';ctx.fillRect(rx,ry,tileSize,tileSize);continue;}
+
+      ctx.globalAlpha=visible?1:0.35;
+      ctx.fillStyle='#1a1a30'; ctx.fillRect(rx,ry,tileSize,tileSize);
+      ctx.fillStyle='#20203a'; ctx.fillRect(rx,ry,tileSize,1); ctx.fillRect(rx,ry,1,tileSize);
+
+      if(visible){
+        const cell=map[y][x];
+        if(cell===4){ctx.fillStyle='#f0c040';const s=tileSize*0.3;ctx.fillRect(rx+tileSize/2-s/2,ry+tileSize/2-s/2,s,s);ctx.fillStyle='#a08020';ctx.fillRect(rx+tileSize/2-s/4,ry+tileSize/2-s/4,s/2,s/2);}
+        else if(cell===2){ctx.fillStyle='#e04040';const s=tileSize*0.25;ctx.fillRect(rx+tileSize/2-s/2,ry+tileSize/2-s,s,s);ctx.fillRect(rx+tileSize/2-s,ry+tileSize/2-s/2,s*2,s/2);}
+        else if(cell===3){ctx.fillStyle='#40c0c0';const s=tileSize*0.2;ctx.fillRect(rx+tileSize/2-s/2,ry+tileSize/2-s,s,s*1.5);ctx.fillRect(rx+tileSize/2-s/2,ry+tileSize/2+s*0.7,s,s*0.3);}
+        else if(cell===5){ctx.fillStyle='#f0c040';const s=tileSize*0.3;ctx.fillRect(rx+tileSize/2-s/2,ry+tileSize/2-s/3,s,s*0.6);ctx.fillStyle='#c0a020';ctx.fillRect(rx+tileSize/2-s*0.15,ry+tileSize/2-s/3,s*0.3,s*0.6);}
+      }
+      ctx.globalAlpha=1;
+    }
+  }
+
+  // Player
+  const px=ox+state.playerPos.x*tileSize, py=oy+state.playerPos.y*tileSize;
+  const pc=CLASSES.find(c=>c.id===state.selectedClass).color;
+  const ps=tileSize*0.6;
+  ctx.fillStyle=pc; ctx.fillRect(px+tileSize/2-ps/2,py+tileSize/2-ps/2,ps,ps);
+  ctx.fillStyle=shadeColor(pc,40); ctx.fillRect(px+tileSize/2-ps/4,py+tileSize/2-ps/3,ps/2,ps/4);
+
+  // Fog
+  const grad=ctx.createRadialGradient(px+tileSize/2,py+tileSize/2,tileSize*2,px+tileSize/2,py+tileSize/2,tileSize*5);
+  grad.addColorStop(0,'rgba(8,8,15,0)'); grad.addColorStop(1,'rgba(8,8,15,0.7)');
+  ctx.fillStyle=grad; ctx.fillRect(0,0,canvas.width,canvas.height);
+}
+
+// TITLE ART
+function drawTitleArt(){
+  const canvas=document.getElementById('titleArtCanvas');
+  const ctx=canvas.getContext('2d'); ctx.imageSmoothingEnabled=false;
+  const _=null, s='#606080', d='#303048', g='#f0c040', r='#e04040';
+  const art=[
+    [_,_,_,_,_,d,d,d,d,d,d,d,d,d,d,_,_,_,_,_],
+    [_,_,_,d,d,s,s,s,s,s,s,s,s,s,s,d,d,_,_,_],
+    [_,_,d,s,s,s,s,s,s,s,s,s,s,s,s,s,s,d,_,_],
+    [_,d,s,s,s,s,s,s,s,s,s,s,s,s,s,s,s,s,d,_],
+    [_,d,s,s,d,d,d,s,s,s,s,s,d,d,d,s,s,s,d,_],
+    [d,s,s,d,_,_,_,d,s,s,s,d,_,_,_,d,s,s,s,d],
+    [d,s,s,d,_,r,_,d,s,s,s,d,_,r,_,d,s,s,s,d],
+    [d,s,s,d,_,_,_,d,s,s,s,d,_,_,_,d,s,s,s,d],
+    [d,s,s,s,d,d,d,s,s,s,s,s,d,d,d,s,s,s,s,d],
+    [d,s,s,s,s,s,s,s,s,s,s,s,s,s,s,s,s,s,s,d],
+    [_,d,s,s,s,s,s,s,d,d,d,s,s,s,s,s,s,s,d,_],
+    [_,d,s,s,s,s,d,d,_,_,_,d,d,s,s,s,s,s,d,_],
+    [_,_,d,s,s,d,_,_,_,_,_,_,_,d,s,s,s,d,_,_],
+    [_,_,d,s,d,_,_,_,_,_,_,_,_,_,d,s,s,d,_,_],
+    [_,_,d,d,_,_,_,_,_,_,_,_,_,_,_,d,d,d,_,_],
+    [_,_,d,_,_,_,g,_,_,_,_,_,g,_,_,_,d,_,_,_],
+    [_,_,d,_,_,g,g,g,_,_,_,g,g,g,_,_,d,_,_,_],
+    [_,_,d,d,d,d,d,d,d,d,d,d,d,d,d,d,d,_,_,_],
+  ];
+  const px=canvas.width/art[0].length;
+  for(let y=0;y<art.length;y++) for(let x=0;x<art[y].length;x++) if(art[y][x]){ctx.fillStyle=art[y][x];ctx.fillRect(x*px,y*px+10,px,px);}
+}
+
+// SCREENS
+function showScreen(id){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  if(id==='create-screen') renderClassGrid();
+}
+
+function renderClassGrid(){
+  const grid=document.getElementById('classGrid'); grid.innerHTML='';
+  CLASSES.forEach(cls=>{
+    const card=document.createElement('div');
+    card.className='class-card'+(state.selectedClass===cls.id?' selected':'');
+    const spr=document.createElement('canvas'); spr.width=64; spr.height=64; spr.className='class-sprite';
+    card.appendChild(spr);
+    const info=document.createElement('div');
+    info.innerHTML=`<h3>${cls.name}</h3><p>${cls.desc}</p>
+      <div class="class-stats">
+        <span>HP: <span class="val">${cls.hp}</span></span><span>MP: <span class="val">${cls.mp}</span></span>
+        <span>ATK: <span class="val">${cls.atk}</span></span><span>DEF: <span class="val">${cls.def}</span></span>
+        <span>MAG: <span class="val">${cls.mag}</span></span><span>SPD: <span class="val">${cls.spd}</span></span>
+      </div>`;
+    card.appendChild(info);
+    card.addEventListener('click',()=>{state.selectedClass=cls.id;renderClassGrid();});
+    grid.appendChild(card);
+    const sctx=spr.getContext('2d'); sctx.imageSmoothingEnabled=false;
+    drawPixelSprite(sctx,generateCharSprite(cls.id),64);
+  });
+  if(!state.selectedClass){state.selectedClass='warrior';renderClassGrid();}
+}
+
+// GAME
+function startGame(){
+  const cls=CLASSES.find(c=>c.id===state.selectedClass);
+  const name=document.getElementById('heroName').value.trim()||'Hero';
+  state.player={name,class:cls.id,hp:cls.hp,maxHp:cls.hp,mp:cls.mp,maxMp:cls.mp,
+    atk:cls.atk,def:cls.def,mag:cls.mag,spd:cls.spd,level:1,xp:0,xpNext:50,abilities:cls.abilities};
+  state.floor=1; state.monstersKilled=0; state.storyEventsUsed=new Set();
+  state.visited=new Set(); state.buffs=[]; state.poisonTurns=0; state.evadeTurns=0;
+  generateFloor();
+  showScreen('game-screen');
+  updateUI();
+  addMessage('story','You descend into the dungeon depths. The air grows cold and damp...');
+  addMessage('system','Use arrow keys / WASD or buttons to explore. Find the stairs to go deeper.');
+  setTimeout(renderDungeon,100);
+}
+
+function generateFloor(){
+  state.map=generateMap(state.floor);
+  state.playerPos={x:state.map.start.x,y:state.map.start.y};
+  state.visited=new Set(); state.visited.add(state.playerPos.x+','+state.playerPos.y);
+  document.getElementById('floorInfo').textContent='Floor '+state.floor;
+  document.getElementById('locationName').textContent=ROOM_NAMES[Math.floor(Math.random()*ROOM_NAMES.length)];
+}
+
+function updateUI(){
+  const p=state.player;
+  document.getElementById('charName').textContent=p.name;
+  document.getElementById('charClass').textContent='Lv.'+p.level+' '+CLASSES.find(c=>c.id===p.class).name;
+  document.getElementById('hpText').textContent=p.hp+'/'+p.maxHp;
+  document.getElementById('hpBar').style.width=(p.hp/p.maxHp)*100+'%';
+  document.getElementById('mpText').textContent=p.mp+'/'+p.maxMp;
+  document.getElementById('mpBar').style.width=(p.mp/p.maxMp)*100+'%';
+  document.getElementById('xpText').textContent=p.xp+'/'+p.xpNext;
+  document.getElementById('xpBar').style.width=(p.xp/p.xpNext)*100+'%';
+  document.getElementById('statsGrid').innerHTML=
+    '<div class="stat"><span class="sname">ATK</span><span class="sval">'+p.atk+'</span></div>'+
+    '<div class="stat"><span class="sname">DEF</span><span class="sval">'+p.def+'</span></div>'+
+    '<div class="stat"><span class="sname">MAG</span><span class="sval">'+p.mag+'</span></div>'+
+    '<div class="stat"><span class="sname">SPD</span><span class="sval">'+p.spd+'</span></div>'+
+    '<div class="stat"><span class="sname">FLOOR</span><span class="sval">'+state.floor+'</span></div>'+
+    '<div class="stat"><span class="sname">KILLS</span><span class="sval">'+state.monstersKilled+'</span></div>';
+}
+
+function addMessage(type,text){
+  const log=document.getElementById('narrativeLog');
+  const div=document.createElement('div'); div.className='msg '+type; div.textContent=text;
+  log.appendChild(div); log.scrollTop=log.scrollHeight;
+  // Keep log manageable
+  while(log.children.length > 50) log.removeChild(log.firstChild);
+}
+
+// MOVEMENT
+function movePlayer(dx,dy){
+  if(state.inCombat) return;
+  if(dx===0&&dy===0){addMessage('system','You wait...'); return;}
+  const nx=state.playerPos.x+dx, ny=state.playerPos.y+dy;
+  if(ny<0||ny>=state.map.grid.length||nx<0||nx>=state.map.grid[0].length) return;
+  if(state.map.grid[ny][nx]===0) return;
+
+  state.playerPos={x:nx,y:ny}; state.visited.add(nx+','+ny);
+  const cell=state.map.grid[ny][nx];
+  document.getElementById('locationName').textContent=ROOM_NAMES[Math.floor(Math.random()*ROOM_NAMES.length)];
+
+  if(cell===2){ startCombat(nx,ny); }
+  else if(cell===3){ triggerStoryEvent(); state.map.grid[ny][nx]=1; }
+  else if(cell===4){
+    state.floor++;
+    if(state.floor>4){
+      addMessage('story','\u2726 You have conquered the dungeon! The Shadow Lord flees before your might! \u2726');
+      document.getElementById('victorySummary').innerHTML=
+        state.player.name+' the '+CLASSES.find(c=>c.id===state.player.class).name+'<br>'+
+        'Level '+state.player.level+'<br>Monsters Slain: '+state.monstersKilled;
+      setTimeout(()=>showScreen('victory-screen'),1000);
+      return;
+    }
+    generateFloor();
+    addMessage('story','You descend to Floor '+state.floor+'. The darkness deepens...');
+    state.player.hp=Math.min(state.player.maxHp,state.player.hp+Math.floor(state.player.maxHp*0.2));
+    state.player.mp=Math.min(state.player.maxMp,state.player.mp+Math.floor(state.player.maxMp*0.3));
+    addMessage('heal','The stairway\'s magic restores some strength.');
+  } else if(cell===5){
+    const hpG=Math.floor(state.player.maxHp*0.3), mpG=Math.floor(state.player.maxMp*0.3);
+    state.player.hp=Math.min(state.player.maxHp,state.player.hp+hpG);
+    state.player.mp=Math.min(state.player.maxMp,state.player.mp+mpG);
+    addMessage('loot','Treasure chest! +'+hpG+' HP, +'+mpG+' MP.');
+    if(Math.random()>0.5){state.player.atk++;addMessage('loot','Found an enchanted ring! ATK +1');}
+    state.map.grid[ny][nx]=1;
+  }
+  renderDungeon(); updateUI();
+}
+
+document.addEventListener('keydown',e=>{
+  const m={'ArrowUp':[0,-1],'ArrowDown':[0,1],'ArrowLeft':[-1,0],'ArrowRight':[1,0],
+    'w':[0,-1],'s':[0,1],'a':[-1,0],'d':[1,0],'W':[0,-1],'S':[0,1],'A':[-1,0],'D':[1,0]};
+  if(m[e.key]){e.preventDefault();movePlayer(...m[e.key]);}
+});
+
+// COMBAT
+function startCombat(x,y){
+  const fl=ENEMIES_BY_FLOOR[Math.min(state.floor,4)];
+  const t=fl[Math.floor(Math.random()*fl.length)];
+  const sc=1+(state.floor-1)*0.15;
+  state.combat={...t,hp:Math.floor(t.hp*sc),maxHp:Math.floor(t.hp*sc),atk:Math.floor(t.atk*sc),def:Math.floor(t.def*sc),mapX:x,mapY:y,sprite:generateEnemySprite(t.color)};
+  state.poisonTurns=0; state.evadeTurns=0; state.buffs=[]; state.inCombat=true;
+  addMessage('combat','A '+state.combat.name+' appears!');
+  showCombatUI();
+}
+
+function showCombatUI(){
+  document.getElementById('combatOverlay').classList.add('active');
+  const e=state.combat;
+  const ec=document.getElementById('enemySpriteCanvas');
+  const ectx=ec.getContext('2d'); ectx.imageSmoothingEnabled=false; ectx.clearRect(0,0,128,128);
+  drawPixelSprite(ectx,e.sprite,112,8,8);
+  document.getElementById('enemyName').textContent=e.name+' (Lv.'+state.floor+')';
+  updateEnemyHpBar(); renderCombatActions();
+}
+
+function updateEnemyHpBar(){
+  const e=state.combat;
+  document.getElementById('enemyHpText').textContent=e.hp+'/'+e.maxHp;
+  document.getElementById('enemyHpBar').style.width=(e.hp/e.maxHp)*100+'%';
+}
+
+function renderCombatActions(){
+  const div=document.getElementById('combatActions'); div.innerHTML='';
+  state.player.abilities.forEach((ab,i)=>{
+    const btn=document.createElement('button'); btn.className='action-btn';
+    btn.innerHTML=ab.name+(ab.cost>0?' <span class="cost">'+ab.cost+' MP</span>':'');
+    btn.disabled=state.player.mp<ab.cost;
+    btn.addEventListener('click',()=>useAbility(i));
+    div.appendChild(btn);
+  });
+}
+
+function useAbility(index){
+  const p=state.player, e=state.combat, ab=p.abilities[index];
+  if(p.mp<ab.cost) return;
+  p.mp-=ab.cost;
+
+  if(ab.type==='physical'){
+    let dmg=Math.floor(p.atk*ab.dmg-e.def*0.5+Math.random()*4);
+    dmg=Math.max(1,dmg);
+    state.buffs.forEach(b=>{if(b.type==='atk')dmg=Math.floor(dmg*b.mult);});
+    e.hp-=dmg; addMessage('player',ab.name+'! '+dmg+' damage to '+e.name+'.');
+  } else if(ab.type==='magic'){
+    let dmg=Math.floor(p.mag*ab.dmg-e.def*0.3+Math.random()*3);
+    dmg=Math.max(1,dmg); e.hp-=dmg;
+    addMessage('player',ab.name+'! '+dmg+' magic damage to '+e.name+'.');
+  } else if(ab.type==='poison'){
+    let dmg=Math.floor(p.atk*ab.dmg-e.def*0.3); dmg=Math.max(1,dmg);
+    e.hp-=dmg; state.poisonTurns=3;
+    addMessage('player',ab.name+'! '+dmg+' damage. '+e.name+' is poisoned!');
+  } else if(ab.type==='heal'){
+    const heal=Math.floor(p.mag*2.5+10); p.hp=Math.min(p.maxHp,p.hp+heal);
+    addMessage('heal',ab.name+'! Restored '+heal+' HP.');
+  } else if(ab.type==='buff_def'){
+    state.buffs.push({type:'def',mult:1.5,turns:3}); addMessage('player',ab.name+'! Defense increased.');
+  } else if(ab.type==='buff_atk'){
+    state.buffs.push({type:'atk',mult:1.4,turns:3}); addMessage('player',ab.name+'! Attack power increased.');
+  } else if(ab.type==='buff_evade'){
+    state.evadeTurns=2; addMessage('player',ab.name+'! You fade into shadows.');
+  } else if(ab.type==='buff_all'){
+    state.buffs.push({type:'atk',mult:1.25,turns:3}); state.buffs.push({type:'def',mult:1.25,turns:3});
+    addMessage('player',ab.name+'! All stats boosted.');
+  }
+
+  if(state.poisonTurns>0){
+    const pd=Math.floor(p.atk*0.3); e.hp-=pd; state.poisonTurns--;
+    addMessage('combat','Poison deals '+pd+' to '+e.name+'.');
+  }
+
+  // Shake enemy
+  const sc=document.getElementById('enemySpriteCanvas'); sc.classList.add('shake');
+  setTimeout(()=>sc.classList.remove('shake'),300);
+
+  updateEnemyHpBar();
+  if(e.hp<=0){endCombat(true);return;}
+  setTimeout(()=>enemyTurn(),500);
+}
+
+function enemyTurn(){
+  const p=state.player, e=state.combat;
+  if(state.evadeTurns>0){
+    state.evadeTurns--; addMessage('combat',e.name+' attacks but misses!');
+  } else {
+    let dmg=Math.floor(e.atk-p.def*0.6+Math.random()*3);
+    state.buffs.forEach(b=>{if(b.type==='def')dmg=Math.floor(dmg/b.mult);});
+    dmg=Math.max(1,dmg); p.hp-=dmg;
+    addMessage('combat',e.name+' attacks for '+dmg+' damage!');
+  }
+  state.buffs=state.buffs.map(b=>({...b,turns:b.turns-1})).filter(b=>b.turns>0);
+  updateUI(); renderCombatActions();
+  if(p.hp<=0){gameOver();return;}
+}
+
+function endCombat(won){
+  const e=state.combat;
+  document.getElementById('combatOverlay').classList.remove('active');
+  state.map.grid[e.mapY][e.mapX]=1;
+  if(won){
+    state.monstersKilled++;
+    state.player.xp+=e.xp; addMessage('loot',e.name+' defeated! +'+e.xp+' XP');
+    if(Math.random()>0.5){const d=Math.floor(state.player.maxHp*0.15);state.player.hp=Math.min(state.player.maxHp,state.player.hp+d);addMessage('loot','Health shard! +'+d+' HP');}
+    if(state.player.xp>=state.player.xpNext) levelUp();
+  }
+  state.combat=null; state.buffs=[]; state.poisonTurns=0; state.evadeTurns=0; state.inCombat=false;
+  updateUI(); renderDungeon();
+}
+
+function levelUp(){
+  const p=state.player;
+  p.level++; p.xp-=p.xpNext; p.xpNext=Math.floor(p.xpNext*1.6);
+  p.maxHp+=12; p.maxMp+=8; p.hp=p.maxHp; p.mp=p.maxMp;
+  p.atk+=2; p.def+=2; p.mag+=2; p.spd+=1;
+  addMessage('loot','\u2726 LEVEL UP! Now Level '+p.level+'! \u2726');
+  const flash=document.getElementById('levelFlash'), text=document.getElementById('levelText');
+  flash.classList.add('active'); text.classList.add('active');
+  setTimeout(()=>{flash.classList.remove('active');text.classList.remove('active');},2000);
+}
+
+// STORY
+function triggerStoryEvent(){
+  const avail=STORY_EVENTS.filter((_,i)=>!state.storyEventsUsed.has(i));
+  if(!avail.length){addMessage('story','An empty chamber. Ancient runes cover the walls, faded beyond reading.');return;}
+  const idx=STORY_EVENTS.indexOf(avail[Math.floor(Math.random()*avail.length)]);
+  state.storyEventsUsed.add(idx);
+  const ev=STORY_EVENTS[idx];
+  const ov=document.getElementById('dialogueOverlay'); ov.classList.add('active');
+  document.getElementById('dialogueSpeaker').textContent=ev.speaker;
+  document.getElementById('dialogueText').textContent=ev.text;
+  const cd=document.getElementById('dialogueChoices'); cd.innerHTML='';
+  ev.choices.forEach(ch=>{
+    const btn=document.createElement('button'); btn.className='dialogue-choice';
+    btn.textContent='\u25B8 '+ch.text;
+    btn.addEventListener('click',()=>{
+      ov.classList.remove('active');
+      addMessage('story',ev.speaker+': "'+ch.response+'"');
+      applyChoiceEffect(ch.effect); updateUI();
+    });
+    cd.appendChild(btn);
+  });
+}
+
+function applyChoiceEffect(eff){
+  const p=state.player;
+  if(eff==='brave'){p.atk+=1;addMessage('loot','Your resolve strengthens. ATK +1');}
+  else if(eff==='learn'){p.mag+=1;addMessage('loot','Knowledge is power. MAG +1');}
+  else if(eff==='heal'){const h=Math.floor(p.maxHp*0.5);p.hp=Math.min(p.maxHp,p.hp+h);addMessage('heal','Restored '+h+' HP.');}
+  else if(eff==='mag_boost'){p.mag+=5;addMessage('loot','Ancient power flows through you. MAG +5');}
+}
+
+function gameOver(){
+  document.getElementById('combatOverlay').classList.remove('active');
+  state.inCombat=false;
+  document.getElementById('deathSummary').innerHTML=
+    state.player.name+' the '+CLASSES.find(c=>c.id===state.player.class).name+'<br>'+
+    'Level '+state.player.level+'<br>Floor '+state.floor+'<br>Monsters Slain: '+state.monstersKilled;
+  setTimeout(()=>showScreen('gameover-screen'),800);
+}
+
+window.addEventListener('resize',()=>{if(document.getElementById('game-screen').classList.contains('active'))renderDungeon();});
+drawTitleArt();
+</script>
+</body>
+</html>
