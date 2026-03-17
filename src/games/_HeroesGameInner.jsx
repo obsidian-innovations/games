@@ -651,7 +651,7 @@ export default function HeroesGame() {
           </span>
         </div>
         <div style={{ color: "#e8d5a3", fontSize: 13 }}>
-          📅 Day {day} &nbsp;|&nbsp; 🦸 Lv.{hero.level} &nbsp;|&nbsp; ⚔️{hero.atk} 🛡️{hero.def} &nbsp;|&nbsp; 🏃 {Math.floor(hero.movement)}/{hero.maxMovement}
+          📅 Day {day} &nbsp;|&nbsp; 🧙 Lv.{hero.level} &nbsp;|&nbsp; ⚔️{hero.atk} 🛡️{hero.def} &nbsp;|&nbsp; 🏃 {Math.floor(hero.movement)}/{hero.maxMovement}
         </div>
       </div>
 
@@ -735,7 +735,7 @@ export default function HeroesGame() {
                 fontSize: 26, zIndex: 10,
                 filter: "drop-shadow(0 0 8px rgba(100,180,255,0.6))",
                 transition: "left 0.15s, top 0.15s",
-              }}>🦸</div>
+              }}>🧙</div>
             )}
           </div>
         </div>
